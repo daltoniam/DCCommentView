@@ -16,6 +16,17 @@
  */
 -(void)didSendComment:(NSString*)text;
 
+@optional
+/**
+ the comment view presented.
+ */
+-(void)didShowCommentView;
+
+/**
+ the comment view was dismissed/pulled down
+ */
+-(void)didDismissCommentView;
+
 @end
 
 @interface DCCommentView : UIView

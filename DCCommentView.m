@@ -7,7 +7,6 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #import "DCCommentView.h"
-@import QuartzCore;
 
 @interface DCCommentView ()
 
@@ -22,6 +21,8 @@
 @property(nonatomic,strong)UIToolbar *blurBar;
 @property(nonatomic,strong)UILabel *textLabel;
 @property(nonatomic,strong)UIButton *accessoryButton;
+@property(nonatomic,assign)BOOL lastKeyboard;
+@property(nonatomic,weak)UIScrollView *scrollView;
 
 @end
 
@@ -67,12 +68,16 @@
         self.textView.inputAccessoryView = self;
         [self.textView addObserver:self forKeyPath:@"contentSize" options:(NSKeyValueObservingOptionNew) context:NULL];
         [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(keyboardWillShow:)
+                                                 selector:@selector(keyboardDidShow:)
                                                      name:UIKeyboardDidShowNotification
                                                    object:nil];
         [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(keyboardWillHide:)
+                                                 selector:@selector(keyboardDidHide:)
                                                      name:UIKeyboardDidHideNotification
+                                                   object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(keyboardWillHide:)
+                                                     name:UIKeyboardWillHideNotification
                                                    object:nil];
         
         self.sendButton = [UIButton buttonWithType:UIButtonTypeCustom];//[FTButton buttonWithColor:[UIColor CSHighlightColor] raised:NO];
@@ -86,6 +91,12 @@
         
     }
     return self;
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+-(void)setFrame:(CGRect)frame
+{
+    [super setFrame:frame];
+    NSLog(@"frame origin: %f",frame.origin.y);
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 -(void)layoutSubviews
@@ -146,6 +157,18 @@
     [self setNeedsDisplay];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+- (void)textViewDidBeginEditing:(UITextView *)textView
+{
+    if([self.delegate respondsToSelector:@selector(didShowCommentView)])
+        [self.delegate didShowCommentView];
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+- (void)textViewDidEndEditing:(UITextView *)textView
+{
+    if([self.delegate respondsToSelector:@selector(didDismissCommentView)])
+        [self.delegate didDismissCommentView];
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
 - (void)textViewDidChange:(UITextView *)txtView
 {
     [self textState:txtView.text];
@@ -167,38 +190,70 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 -(void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context
 {
-    UITextView *tv = object;
-    float hLimit = 90;
-    float yOffset = 0;
-    if(self.oldSize > tv.contentSize.height)
-        yOffset += self.oldSize - tv.contentSize.height;
-    
-    if(tv.contentSize.height < hLimit)
+    if([object isKindOfClass:[UITextView class]])
     {
-        CGRect frame = self.frame;
-        frame.size.height = tv.contentSize.height+10;
-        frame.origin.y += yOffset;
-        self.frame = frame;
+        UITextView *tv = object;
+        float hLimit = 90;
+        float yOffset = 0;
+        if(self.oldSize > tv.contentSize.height)
+            yOffset += self.oldSize - tv.contentSize.height;
+        else if([tv.text characterAtIndex:tv.text.length-1] == '\n') //this is to work around yet another bug in input accessory.
+            yOffset -= tv.font.pointSize+5;
+        if(tv.contentSize.height < hLimit)
+        {
+            CGRect frame = self.frame;
+            frame.size.height = tv.contentSize.height+10;
+            frame.origin.y += yOffset;
+            self.frame = frame;
+            [self.superview setNeedsLayout];
+        }
+        CGFloat topCorrect = ([tv bounds].size.height - [tv contentSize].height * [tv zoomScale])/2.0;
+        if(yOffset > 0)
+            topCorrect = self.textView.font.pointSize-topCorrect;
+        tv.contentOffset = (CGPoint){.x = 0, .y = -topCorrect};
     }
-    CGFloat topCorrect = ([tv bounds].size.height - [tv contentSize].height * [tv zoomScale])/2.0;
-    if(yOffset > 0)
-        topCorrect = self.textView.font.pointSize-topCorrect;
-    tv.contentOffset = (CGPoint){.x = 0, .y = -topCorrect};
+    else if(self.isFixed)
+    {
+        UIView *view = object;
+        //NSLog(@"view: %@",view);
+        [UIView animateWithDuration:0.15 animations:^{
+            CGRect frame = self.scrollView.frame;
+            frame.size.height = view.frame.origin.y;
+            self.scrollView.frame = frame;
+        }];
+    }
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 -(void)bindToScrollView:(UIScrollView*)scrollView superview:(UIView*)superview
 {
     if(self.superview != superview)
     {
+        self.scrollView = scrollView;
         scrollView.keyboardDismissMode = UIScrollViewKeyboardDismissModeInteractive;
         float height = self.normalHeight;
         self.frame = CGRectMake(0, superview.frame.size.height-height, superview.frame.size.width, height);
-        self.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+        self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleTopMargin;
         CGRect frame = scrollView.frame;
         frame.size.height -= height;
         scrollView.frame = frame;
         [superview addSubview:self];
     }
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+- (void)willMoveToSuperview:(UIView *)newSuperview
+{
+    if (self.superview)
+    {
+        [self.superview removeObserver:self
+                            forKeyPath:@"frame"];
+    }
+    
+    [newSuperview addObserver:self
+                   forKeyPath:@"frame"
+                      options:0
+                      context:NULL];
+    
+    [super willMoveToSuperview:newSuperview];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 #pragma keyboard handling
@@ -227,36 +282,87 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 - (void) moveTextViewForKeyboard:(NSNotification*)aNotification up:(BOOL)up
 {
-    //NSLog(@"keyboard moved to: %@", up ? @"UP" : @"NO");
-    if(!self.isFixed && up)
+    NSDictionary* userInfo = [aNotification userInfo];
+    NSTimeInterval animationDuration = 0;
+    
+    [[userInfo objectForKey:UIKeyboardAnimationDurationUserInfoKey] getValue:&animationDuration];
+    //if(up == self.lastKeyboard)
+    //    return;
+    //self.lastKeyboard = up;
+    if(animationDuration != 0)
     {
-        self.lastRect = self.frame;
-        self.lastSuperview = self.superview;
-        [self performSelector:@selector(firstUpdate) withObject:nil afterDelay:0.01];
-        return;
+        //NSLog(@"keyboard moved to: %@", up ? @"UP" : @"NO");
+        if(!self.isFixed && up)
+        {
+            self.lastRect = self.frame;
+            self.lastSuperview = self.superview;
+            [self performSelector:@selector(firstUpdate) withObject:nil afterDelay:0.01];
+            return;
+        }
+        else if(!up)
+        {
+            self.isFixed = NO;
+            [self removeFromSuperview];
+            [self.lastSuperview addSubview:self];
+            self.frame = self.lastRect;
+        }
+        
     }
-    else if(self.isFixed && !up)
+    CGRect keyboardFrame;
+    [[userInfo objectForKey:UIKeyboardFrameEndUserInfoKey] getValue:&keyboardFrame];
+    if(self.scrollView.superview)
+        keyboardFrame = [self.scrollView.superview convertRect:keyboardFrame toView:nil];
+    float height = keyboardFrame.size.height;
+    
+    [UIView beginAnimations:nil context:nil];
+    if(up)
+        [UIView setAnimationDuration:0.2];
+    else
+        [UIView setAnimationDuration:0.3];
+    CGRect frame = self.scrollView.frame;
+    if(up)
+        frame.size.height = self.scrollView.superview.frame.size.height - height;
+    else
+        frame.size.height = self.scrollView.superview.frame.size.height - self.frame.size.height;
+    self.scrollView.frame = frame;
+    [UIView commitAnimations];
+    
+    if(animationDuration != 0)
     {
-        self.isFixed = NO;
-        [self removeFromSuperview];
-        [self.lastSuperview addSubview:self];
-        self.frame = self.lastRect;
+        if(up)
+        {
+            [self.scrollView scrollRectToVisible:CGRectMake(0.0,
+                                                            self.scrollView.contentSize.height - 1.0,
+                                                            1.0,
+                                                            1.0)
+                                        animated:YES];
+        }
     }
-    //do stuff
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-- (void)keyboardWillShow:(NSNotification *)aNotification
+- (void)keyboardDidShow:(NSNotification *)aNotification
 {
     [self moveTextViewForKeyboard:aNotification up:YES];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-- (void)keyboardWillHide:(NSNotification *)aNotification
+- (void)keyboardDidHide:(NSNotification *)aNotification
 {
     [self moveTextViewForKeyboard:aNotification up:NO];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+- (void)keyboardWillHide:(NSNotification *)aNotification
+{
+    //NSLog(@"will hide: %@",aNotification);
+    //[self moveTextViewForKeyboard:aNotification up:NO];
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
 -(void)dealloc
 {
+    if (self.superview)
+    {
+        [self.superview removeObserver:self
+                            forKeyPath:@"frame"];
+    }
     [self.textView removeObserver:self forKeyPath:@"contentSize"];
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
