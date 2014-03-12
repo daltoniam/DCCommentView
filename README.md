@@ -5,6 +5,28 @@ Comment view for iOS, same as messages app. Customizable.
 
 ![alt tag](https://raw.github.com/daltoniam/DCCommentView/master/demo.gif)
 
+#Example
+
+```objective-c
+@interface CommentsViewController ()
+
+@property(nonatomic,strong)DCCommentView *commentView;
+
+@end
+- (void)viewDidLoad
+{
+    [super viewDidLoad];
+    self.commentView = [DCCommentView new];
+	//more setup code
+}
+
+-(void)viewWillAppear:(BOOL)animated
+{
+    [super viewWillAppear:animated];
+    [self.commentView bindToScrollView:self.tableView superview:self.view];
+}
+```
+
 # Install #
 
 The recommended approach for installing DCCommentView is via the CocoaPods package manager, as it provides flexible dependency management and dead simple installation.
