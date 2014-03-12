@@ -37,6 +37,11 @@
 @property(nonatomic,weak)id<DCCommentViewDelegate>delegate;
 
 /**
+ limit the amount of characters that can be sent. Default is 0, which is unlimited.
+ */
+@property(nonatomic,assign)int charLimit;
+
+/**
  add an image for your accessory button (e.g. the camera icon in the messages app).
  default is nil and no image will be displayed.
  */
@@ -46,7 +51,7 @@
  binds the comment view to the scrollView (this is with the comment view at the bottom of the view
  and selectable to bring up the keyboard). The scrollView must have a superview for this work properly.
  @param scrollView is the a scrollView or scrollView subclass (like a UITableView).
- @param the view to add the commentview as a subview too. 
+ @param the view to add the commentview as a subview too.
  @return returns a newly initialized comment view.
  */
 -(void)bindToScrollView:(UIScrollView*)scrollView superview:(UIView*)superview;

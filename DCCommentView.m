@@ -21,8 +21,8 @@
 @property(nonatomic,strong)UIToolbar *blurBar;
 @property(nonatomic,strong)UILabel *textLabel;
 @property(nonatomic,strong)UIButton *accessoryButton;
-@property(nonatomic,assign)BOOL lastKeyboard;
 @property(nonatomic,weak)UIScrollView *scrollView;
+@property(nonatomic,strong)UILabel *limitLabel;
 
 @end
 
@@ -34,6 +34,7 @@
     self = [super initWithFrame:frame];
     if (self)
     {
+        self.charLimit = 0;
         UIColor *color = self.tintColor;
         if(!color)
             color = [UIColor blueColor];
@@ -112,6 +113,12 @@
     self.textLabel.frame = CGRectMake(pad, 0, self.backView.frame.size.width-(pad*2), self.backView.frame.size.height);
     left += self.backView.frame.size.width + (pad/2);
     self.sendButton.frame = CGRectMake(left, pad, btnWidth, self.frame.size.height-(pad*2));
+    if(self.sendButton.frame.size.height > 50 && self.charLimit > 0)
+    {
+        self.limitLabel.frame = CGRectMake(left-pad, (self.sendButton.frame.size.height/2)+pad, btnWidth, 18);
+    }
+    else
+        self.limitLabel.frame = CGRectZero;
     self.oldSize = self.textView.contentSize.height;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -143,6 +150,20 @@
     }
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+-(void)setCharLimit:(int)charLimit
+{
+    _charLimit = charLimit;
+    if(!self.limitLabel && self.charLimit > 0)
+    {
+        self.limitLabel = [[UILabel alloc] init];
+        self.limitLabel.backgroundColor = [UIColor clearColor];
+        self.limitLabel.textColor = [UIColor lightGrayColor];
+        self.limitLabel.textAlignment = NSTextAlignmentCenter;
+        self.limitLabel.font = [UIFont systemFontOfSize:15];
+        [self.backView addSubview:self.limitLabel];
+    }
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
 -(void)sendMessage
 {
     [self.delegate didSendComment:self.textView.text];
@@ -170,16 +191,23 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 -(void)textState:(NSString*)text
 {
+    BOOL enable = NO;
     if(text.length > 0)
     {
-        self.sendButton.enabled = YES;
+        enable = YES;
+        if(self.charLimit > 0)
+        {
+            if(text.length > self.charLimit)
+                enable = NO;
+            NSInteger left = self.charLimit-text.length;
+            self.limitLabel.text = [NSString stringWithFormat:@"%ld",(long)left];
+        }
+    }
+    self.sendButton.enabled = enable;
+    if(text.length > 0)
         self.textLabel.hidden = YES;
-    }
     else
-    {
-        self.sendButton.enabled = NO;
         self.textLabel.hidden = NO;
-    }
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 -(void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context
@@ -193,14 +221,16 @@
             yOffset += self.oldSize - tv.contentSize.height;
         else if([tv.text characterAtIndex:tv.text.length-1] == '\n') //this is to work around yet another bug in input accessory.
             yOffset -= tv.font.pointSize+5;
-        if(tv.contentSize.height < hLimit)
-        {
-            CGRect frame = self.frame;
-            frame.size.height = tv.contentSize.height+10;
-            frame.origin.y += yOffset;
-            self.frame = frame;
-            [self.superview setNeedsLayout];
-        }
+        float size = tv.contentSize.height;
+        if(tv.contentSize.height > hLimit)
+            size = hLimit;
+        
+        CGRect frame = self.frame;
+        frame.size.height = size+10;
+        frame.origin.y += yOffset;
+        self.frame = frame;
+        [self.superview setNeedsLayout];
+        
         CGFloat topCorrect = ([tv bounds].size.height - [tv contentSize].height * [tv zoomScale])/2.0;
         if(yOffset > 0)
             topCorrect = self.textView.font.pointSize-topCorrect;
@@ -210,11 +240,16 @@
     {
         UIView *view = object;
         //NSLog(@"view: %@",view);
-        [UIView animateWithDuration:0.15 animations:^{
-            CGRect frame = self.scrollView.frame;
-            frame.size.height = view.frame.origin.y;
-            self.scrollView.frame = frame;
-        }];
+        float offset = view.frame.origin.y;
+        float mainH = self.scrollView.superview.frame.size.height-self.frame.size.height;
+        if(offset <= mainH)
+        {
+            [UIView animateWithDuration:0.15 animations:^{
+                CGRect frame = self.scrollView.frame;
+                frame.size.height = view.frame.origin.y;
+                self.scrollView.frame = frame;
+            }];
+        }
     }
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -296,9 +331,12 @@
         else if(!up)
         {
             self.isFixed = NO;
-            [self removeFromSuperview];
-            [self.lastSuperview addSubview:self];
-            self.frame = self.lastRect;
+            if(self.lastSuperview)
+            {
+                [self removeFromSuperview];
+                [self.lastSuperview addSubview:self];
+                self.frame = self.lastRect;
+            }
         }
         
     }
@@ -306,20 +344,15 @@
     [[userInfo objectForKey:UIKeyboardFrameEndUserInfoKey] getValue:&keyboardFrame];
     if(self.scrollView.superview)
         keyboardFrame = [self.scrollView.superview convertRect:keyboardFrame toView:nil];
-    float height = keyboardFrame.size.height;
-    
-    [UIView beginAnimations:nil context:nil];
-    if(up)
-        [UIView setAnimationDuration:0.2];
-    else
-        [UIView setAnimationDuration:0.3];
+    //[UIView beginAnimations:nil context:nil];
+    //[UIView setAnimationDuration:0.1];
     CGRect frame = self.scrollView.frame;
-    if(up)
-        frame.size.height = self.scrollView.superview.frame.size.height - height;
-    else
-        frame.size.height = self.scrollView.superview.frame.size.height - self.frame.size.height;
+    float h = self.frame.origin.y;
+    if(h == 0)
+        h = self.superview.frame.origin.y;
+    frame.size.height = h;
     self.scrollView.frame = frame;
-    [UIView commitAnimations];
+    //[UIView commitAnimations];
     
     if(animationDuration != 0)
     {
@@ -346,8 +379,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 - (void)keyboardWillHide:(NSNotification *)aNotification
 {
-    //NSLog(@"will hide: %@",aNotification);
-    //[self moveTextViewForKeyboard:aNotification up:NO];
+    [self moveTextViewForKeyboard:aNotification up:NO];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 -(void)dealloc
