@@ -17,6 +17,7 @@ Comment view for iOS, same as messages app. Customizable.
 {
     [super viewDidLoad];
     self.commentView = [DCCommentView new];
+    self.commentView.delegate = self;
 	//more setup code
 }
 
@@ -42,7 +43,7 @@ Change to the directory of your Xcode project, and Create and Edit your Podfile 
 	$ cd /path/to/MyProject
 	$ touch Podfile
 	$ edit Podfile
-	platform :ios, '7.0' 
+	platform :ios, '7.0'
 	pod 'DCCommentView'
 
 Install into your project:
