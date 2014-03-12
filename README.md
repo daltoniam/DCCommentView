@@ -20,14 +20,13 @@ Change to the directory of your Xcode project, and Create and Edit your Podfile 
 	$ cd /path/to/MyProject
 	$ touch Podfile
 	$ edit Podfile
-	platform :ios, '5.0' 
-	# Or platform :osx, '10.8'
+	platform :ios, '7.0' 
 	pod 'DCCommentView'
 
 Install into your project:
 
 	$ pod install
-	
+
 Open your project in Xcode from the .xcworkspace file (not the usual project file)
 
 Via git
