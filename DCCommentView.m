@@ -266,6 +266,7 @@
         frame.size.height -= height;
         scrollView.frame = frame;
         [superview addSubview:self];
+        self.lastRect = self.frame;
     }
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -309,7 +310,7 @@
     [self.textView becomeFirstResponder];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-- (void) moveTextViewForKeyboard:(NSNotification*)aNotification up:(BOOL)up
+- (void) moveTextViewForKeyboard:(NSNotification*)aNotification up:(BOOL)up isEnd:(BOOL)isEnd
 {
     NSDictionary* userInfo = [aNotification userInfo];
     NSTimeInterval animationDuration = 0;
@@ -323,7 +324,9 @@
         //NSLog(@"keyboard moved to: %@", up ? @"UP" : @"NO");
         if(!self.isFixed && up)
         {
-            self.lastRect = self.frame;
+            CGRect frame = self.lastRect;
+            frame.origin.y = self.frame.origin.y;
+            self.lastRect = frame;
             self.lastSuperview = self.superview;
             [self performSelector:@selector(firstUpdate) withObject:nil afterDelay:0.01];
             return;
@@ -369,17 +372,17 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 - (void)keyboardDidShow:(NSNotification *)aNotification
 {
-    [self moveTextViewForKeyboard:aNotification up:YES];
+    [self moveTextViewForKeyboard:aNotification up:YES isEnd:NO];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 - (void)keyboardDidHide:(NSNotification *)aNotification
 {
-    [self moveTextViewForKeyboard:aNotification up:NO];
+    [self moveTextViewForKeyboard:aNotification up:NO isEnd:YES];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 - (void)keyboardWillHide:(NSNotification *)aNotification
 {
-    [self moveTextViewForKeyboard:aNotification up:NO];
+    [self moveTextViewForKeyboard:aNotification up:NO isEnd:NO];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 -(void)dealloc
