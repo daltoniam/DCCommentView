@@ -11,9 +11,6 @@
 @interface DCCommentView ()
 
 @property(nonatomic,strong)UITextView *textView;
-@property(nonatomic,assign)BOOL isFixed;
-@property(nonatomic,assign)CGRect lastRect;
-@property(nonatomic,weak)UIView *lastSuperview;
 @property(nonatomic,strong)UIButton *sendButton;
 @property(nonatomic,assign)float normalHeight;
 @property(nonatomic,assign)float oldSize;
@@ -23,6 +20,8 @@
 @property(nonatomic,strong)UIButton *accessoryButton;
 @property(nonatomic,weak)UIScrollView *scrollView;
 @property(nonatomic,strong)UILabel *limitLabel;
+@property(nonatomic,weak)UIView *parentSuperView;
+@property(nonatomic,assign)BOOL isUP;
 
 @end
 
@@ -80,8 +79,12 @@
                                                  selector:@selector(keyboardWillHide:)
                                                      name:UIKeyboardWillHideNotification
                                                    object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(keyboardWillChangeFrame:)
+                                                     name:UIKeyboardWillChangeFrameNotification
+                                                   object:nil];
         
-        self.sendButton = [UIButton buttonWithType:UIButtonTypeCustom];//[FTButton buttonWithColor:[UIColor CSHighlightColor] raised:NO];
+        self.sendButton = [UIButton buttonWithType:UIButtonTypeCustom];
         [self.sendButton setTitleColor:color forState:UIControlStateNormal];
         [self.sendButton setTitleColor:[UIColor colorWithWhite:0.7 alpha:0.5] forState:UIControlStateDisabled];
         [self.sendButton setTitle:NSLocalizedString(@"Send", nil) forState:UIControlStateNormal];
@@ -229,17 +232,21 @@
         frame.size.height = size+10;
         frame.origin.y += yOffset;
         self.frame = frame;
+        CGRect adjustFrame = [self.parentSuperView convertRect:self.frame fromView:self];
+        
+        CGRect parentFrame = self.scrollView.frame;
+        parentFrame.size.height = adjustFrame.origin.y;
+        self.scrollView.frame = parentFrame;
+        
         [self.superview setNeedsLayout];
         
         CGFloat topCorrect = ([tv bounds].size.height - [tv contentSize].height * [tv zoomScale])/2.0;
         if(yOffset > 0)
             topCorrect = self.textView.font.pointSize-topCorrect;
         tv.contentOffset = (CGPoint){.x = 0, .y = -topCorrect};
-    }
-    else if(self.isFixed)
+    } else if(self.isUP)
     {
         UIView *view = object;
-        //NSLog(@"view: %@",view);
         float offset = view.frame.origin.y;
         float mainH = self.scrollView.superview.frame.size.height-self.frame.size.height;
         if(offset <= mainH)
@@ -257,6 +264,7 @@
 {
     if(self.superview != superview)
     {
+        self.parentSuperView = superview;
         self.scrollView = scrollView;
         scrollView.keyboardDismissMode = UIScrollViewKeyboardDismissModeInteractive;
         float height = self.normalHeight;
@@ -266,7 +274,6 @@
         frame.size.height -= height;
         scrollView.frame = frame;
         [superview addSubview:self];
-        self.lastRect = self.frame;
     }
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -303,86 +310,69 @@
     return [self.textView resignFirstResponder];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-//this is a hack to work around a bug in the input accessory view.
--(void)firstUpdate
+- (void)keyboardDidShow:(NSNotification *)aNotification
 {
-    self.isFixed = YES;
     [self.textView becomeFirstResponder];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-- (void) moveTextViewForKeyboard:(NSNotification*)aNotification up:(BOOL)up isEnd:(BOOL)isEnd
+- (void)keyboardDidHide:(NSNotification *)aNotification
+{
+    [self.parentSuperView addSubview:self];
+    [self attachToBottom:aNotification];
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+- (void)keyboardWillHide:(NSNotification *)aNotification
+{
+    NSDictionary* userInfo = [aNotification userInfo];
+    CGRect keyboardFrame;
+    [[userInfo objectForKey:UIKeyboardFrameEndUserInfoKey] getValue:&keyboardFrame];
+    [self attachToBottom:aNotification];
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+- (void)keyboardWillChangeFrame:(NSNotification *)aNotification
 {
     NSDictionary* userInfo = [aNotification userInfo];
     NSTimeInterval animationDuration = 0;
     
     [[userInfo objectForKey:UIKeyboardAnimationDurationUserInfoKey] getValue:&animationDuration];
-    //if(up == self.lastKeyboard)
-    //    return;
-    //self.lastKeyboard = up;
-    if(animationDuration != 0)
-    {
-        //NSLog(@"keyboard moved to: %@", up ? @"UP" : @"NO");
-        if(!self.isFixed && up)
-        {
-            CGRect frame = self.lastRect;
-            frame.origin.y = self.frame.origin.y;
-            self.lastRect = frame;
-            self.lastSuperview = self.superview;
-            [self performSelector:@selector(firstUpdate) withObject:nil afterDelay:0.01];
-            return;
-        }
-        else if(!up)
-        {
-            self.isFixed = NO;
-            if(self.lastSuperview)
-            {
-                [self removeFromSuperview];
-                [self.lastSuperview addSubview:self];
-                self.frame = self.lastRect;
-            }
-        }
-        
-    }
     CGRect keyboardFrame;
     [[userInfo objectForKey:UIKeyboardFrameEndUserInfoKey] getValue:&keyboardFrame];
-    if(self.scrollView.superview)
-        keyboardFrame = [self.scrollView.superview convertRect:keyboardFrame toView:nil];
-    //[UIView beginAnimations:nil context:nil];
-    //[UIView setAnimationDuration:0.1];
-    CGRect frame = self.scrollView.frame;
-    float h = self.frame.origin.y;
-    if(h == 0)
-        h = self.superview.frame.origin.y;
-    frame.size.height = h;
-    self.scrollView.frame = frame;
-    //[UIView commitAnimations];
-    
-    if(animationDuration != 0)
-    {
-        if(up)
-        {
-            [self.scrollView scrollRectToVisible:CGRectMake(0.0,
-                                                            self.scrollView.contentSize.height - 1.0,
-                                                            1.0,
-                                                            1.0)
-                                        animated:YES];
+    if(keyboardFrame.size.height > self.frame.size.height) {
+        if(self.isUP) {
+            return;
         }
+        [self.textView becomeFirstResponder];
+        [UIView animateWithDuration:animationDuration animations:^{
+            CGRect frame = self.scrollView.frame;
+            frame.size.height = self.scrollView.superview.frame.size.height - keyboardFrame.size.height;
+            self.scrollView.frame = frame;
+            [self removeFromSuperview];
+            self.isUP = YES;
+        }];
+    } else {
+        self.isUP = NO;
     }
+    
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-- (void)keyboardDidShow:(NSNotification *)aNotification
+-(void)attachToBottom:(NSNotification *)aNotification
 {
-    [self moveTextViewForKeyboard:aNotification up:YES isEnd:NO];
-}
-////////////////////////////////////////////////////////////////////////////////////////////////////
-- (void)keyboardDidHide:(NSNotification *)aNotification
-{
-    [self moveTextViewForKeyboard:aNotification up:NO isEnd:YES];
-}
-////////////////////////////////////////////////////////////////////////////////////////////////////
-- (void)keyboardWillHide:(NSNotification *)aNotification
-{
-    [self moveTextViewForKeyboard:aNotification up:NO isEnd:NO];
+    [self.textView resignFirstResponder];
+    NSDictionary* userInfo = [aNotification userInfo];
+    NSTimeInterval animationDuration = 0;
+    [[userInfo objectForKey:UIKeyboardAnimationDurationUserInfoKey] getValue:&animationDuration];
+    CGRect keyboardFrame;
+    [[userInfo objectForKey:UIKeyboardFrameEndUserInfoKey] getValue:&keyboardFrame];
+    
+    CGRect frame = self.scrollView.frame;
+    frame.size.height = self.scrollView.superview.frame.size.height - self.frame.size.height;
+    self.scrollView.frame = frame;
+    [self removeFromSuperview];
+    [self.parentSuperView addSubview:self];
+    CGRect oldFrame = self.frame;
+    oldFrame.origin.y = self.scrollView.frame.origin.y + self.scrollView.frame.size.height;
+    self.frame = oldFrame;
+    self.isUP = NO;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 -(void)dealloc
