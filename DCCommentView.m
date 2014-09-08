@@ -234,9 +234,11 @@
         self.frame = frame;
         CGRect adjustFrame = [self.parentSuperView convertRect:self.frame fromView:self];
         
-        CGRect parentFrame = self.scrollView.frame;
-        parentFrame.size.height = adjustFrame.origin.y;
-        self.scrollView.frame = parentFrame;
+        if(adjustFrame.origin.y < self.parentSuperView.frame.size.height) {
+            CGRect parentFrame = self.scrollView.frame;
+            parentFrame.size.height = adjustFrame.origin.y;
+            self.scrollView.frame = parentFrame;
+        }
         
         [self.superview setNeedsLayout];
         
@@ -348,6 +350,12 @@
             self.scrollView.frame = frame;
             [self removeFromSuperview];
             self.isUP = YES;
+        } completion:^(BOOL finished) {
+            [self.scrollView scrollRectToVisible:CGRectMake(0.0,
+                                                            self.scrollView.contentSize.height - 1.0,
+                                                            1.0,
+                                                            1.0)
+                                        animated:YES];
         }];
     } else {
         self.isUP = NO;
