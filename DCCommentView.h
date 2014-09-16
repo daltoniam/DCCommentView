@@ -58,17 +58,13 @@
 @property(nonatomic,strong)UIImage *accessoryImage;
 
 /**
- binds the comment view to the scrollView (this is with the comment view at the bottom of the view
- and selectable to bring up the keyboard). The scrollView must have a superview for this work properly.
- @param scrollView is the a scrollView or scrollView subclass (like a UITableView).
- @param the view to add the commentview as a subview too.
- @return returns a newly initialized comment view.
+ Create a new commentView with the scrollview you want to add as its child view 
+ and the frame of the overall commentView (normally this is self.view.bounds).
+ @param scrollView is the scrollView to add as a subview of commentView and is in charge of displaying your content. 
+ This could be a tableView or collectionView since the both subclass scrollView
+ @param frame is the same frame you would pass to initWithFrame:. This is the frame of the whole view (normally this is self.view.bounds).
+ @return a newly initialized comment view.
  */
--(void)bindToScrollView:(UIScrollView*)scrollView superview:(UIView*)superview;
-
-/**
- Unbinds the listener and scrollView. Recommend to put in the dealloc method
- */
--(void)cleanup;
+-(instancetype)initWithScrollView:(UIScrollView*)scrollView frame:(CGRect)frame;
 
 @end
