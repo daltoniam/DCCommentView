@@ -22,6 +22,7 @@
 @property(nonatomic,strong)UILabel *limitLabel;
 @property(nonatomic,weak)UIView *parentSuperView;
 @property(nonatomic,assign)BOOL isUP;
+@property(nonatomic,assign)BOOL hasStarted;
 
 @end
 
@@ -172,6 +173,7 @@
     [self.delegate didSendComment:self.textView.text];
     self.textView.text = @"";
     [self textState:@""];
+    self.hasStarted = NO;
     [self setNeedsDisplay];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -190,6 +192,17 @@
 - (void)textViewDidChange:(UITextView *)txtView
 {
     [self textState:txtView.text];
+    if(txtView.text.length == 0) {
+        self.hasStarted = NO;
+        if([self.delegate respondsToSelector:@selector(didStopTypingComment)]) {
+            [self.delegate didStopTypingComment];
+        }
+    } else if(txtView.text.length > 0 && !self.hasStarted) {
+        self.hasStarted = YES;
+        if([self.delegate respondsToSelector:@selector(didStartTypingComment)]) {
+            [self.delegate didStartTypingComment];
+        }
+    }
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 -(void)textState:(NSString*)text
@@ -235,8 +248,12 @@
         CGRect adjustFrame = [self.parentSuperView convertRect:self.frame fromView:self];
         
         if(adjustFrame.origin.y < self.parentSuperView.frame.size.height) {
+            CGFloat shrink = 0;
+            if(size < self.oldSize) {
+                shrink = self.oldSize-size;
+            }
             CGRect parentFrame = self.scrollView.frame;
-            parentFrame.size.height = adjustFrame.origin.y;
+            parentFrame.size.height = adjustFrame.origin.y-shrink;
             self.scrollView.frame = parentFrame;
         }
         
@@ -286,12 +303,10 @@
         [self.superview removeObserver:self
                             forKeyPath:@"frame"];
     }
-    
     [newSuperview addObserver:self
                    forKeyPath:@"frame"
                       options:0
                       context:NULL];
-    
     [super willMoveToSuperview:newSuperview];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -343,13 +358,13 @@
         if(self.isUP) {
             return;
         }
+        self.isUP = YES;
         [self.textView becomeFirstResponder];
         [UIView animateWithDuration:animationDuration animations:^{
             CGRect frame = self.scrollView.frame;
             frame.size.height = self.scrollView.superview.frame.size.height - keyboardFrame.size.height;
             self.scrollView.frame = frame;
             [self removeFromSuperview];
-            self.isUP = YES;
         } completion:^(BOOL finished) {
             [self.scrollView scrollRectToVisible:CGRectMake(0.0,
                                                             self.scrollView.contentSize.height - 1.0,
@@ -383,15 +398,18 @@
     self.isUP = NO;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+-(void)cleanup
+{
+    self.textView.inputAccessoryView = nil;
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [self.textView removeObserver:self forKeyPath:@"contentSize"];
+    self.parentSuperView = nil;
+    self.scrollView = nil;
+    [self removeFromSuperview];
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
 -(void)dealloc
 {
-    if (self.superview)
-    {
-        [self.superview removeObserver:self
-                            forKeyPath:@"frame"];
-    }
-    [self.textView removeObserver:self forKeyPath:@"contentSize"];
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 

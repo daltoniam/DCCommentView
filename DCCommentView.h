@@ -27,6 +27,16 @@
  */
 -(void)didDismissCommentView;
 
+/**
+ The user started typing
+ */
+-(void)didStartTypingComment;
+
+/**
+ The user cleared the text and stop typing
+ */
+-(void)didStopTypingComment;
+
 @end
 
 @interface DCCommentView : UIView
@@ -55,5 +65,10 @@
  @return returns a newly initialized comment view.
  */
 -(void)bindToScrollView:(UIScrollView*)scrollView superview:(UIView*)superview;
+
+/**
+ Unbinds the listener and scrollView. Recommend to put in the dealloc method
+ */
+-(void)cleanup;
 
 @end
