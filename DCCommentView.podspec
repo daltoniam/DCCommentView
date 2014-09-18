@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name         = "DCCommentView"
-  s.version      = "0.1.0"
+  s.version      = "0.1.1"
   s.summary      = "Comment view for iOS, same as messages app. Customizable."
   s.homepage     = "https://github.com/daltoniam/DCCommentView"
   s.license      = 'Apache License, Version 2.0'
