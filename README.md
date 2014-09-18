@@ -16,23 +16,13 @@ Comment view for iOS, same as messages app. Customizable.
 - (void)viewDidLoad
 {
     [super viewDidLoad];
-    self.commentView = [DCCommentView new];
+    self.commentView = [[DCCommentView alloc] initWithScrollView:self.tableView frame:self.view.bounds];
     self.commentView.delegate = self;
+    [self.view addSubview:self.commentView];
     //self.commentView.charLimit = 255; you can set this if you want a character limit
     self.commentView.tintColor = [UIColor redColor]; //sets the proper accent items to red
     //self.commentView.accessoryImage = [UIImage imageNamed:@"someimage"]; where the camera button would go
 	//more setup code
-}
-
--(void)viewWillAppear:(BOOL)animated
-{
-    [super viewWillAppear:animated];
-    [self.commentView bindToScrollView:self.tableView superview:self.view];
-}
--(void)viewWillDisappear:(BOOL)animated
-{
-    [super viewWillDisappear:animated];
-    [self.commentView resignFirstResponder];
 }
 ```
 
