@@ -11,27 +11,43 @@
 @interface DCWatcherView : UIView
 
 @property(nonatomic,weak)id delegate;
+@property(nonatomic,copy)NSString *keyword;
 
 @end
 
 @implementation DCWatcherView
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+-(id)initWithFrame:(CGRect)frame
+{
+    if(self = [super initWithFrame:frame])
+    {
+        //hate this...
+        self.keyword = @"frame";
+        if([[[UIDevice currentDevice] systemVersion] floatValue] >= 8.0) {
+            self.keyword = @"center";
+        }
+    }
+    return self;
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
 -(void)willMoveToSuperview:(UIView *)newSuperview
 {
     if(self.superview) {
-        [self.superview removeObserver:self.delegate forKeyPath:@"center"];
+        [self.superview removeObserver:self.delegate forKeyPath:self.keyword];
     }
-    [newSuperview addObserver:self.delegate
-                   forKeyPath:@"center"
-                      options:0
-                      context:NULL];
+    if(newSuperview) {
+        [newSuperview addObserver:self.delegate
+                       forKeyPath:self.keyword
+                          options:0
+                          context:NULL];
+    }
     [super willMoveToSuperview:newSuperview];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 -(void)dealloc
 {
-    [self.superview removeObserver:self.delegate forKeyPath:@"center"];
+    [self.superview removeObserver:self.delegate forKeyPath:self.keyword];
 }
 
 @end
@@ -115,8 +131,6 @@
     self.textView.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
     self.textView.backgroundColor = [UIColor clearColor];
     [self.backView addSubview:self.textView];
-    self.textView.inputAccessoryView = self.watcherView;
-    [self.textView addObserver:self forKeyPath:@"contentSize" options:(NSKeyValueObservingOptionNew) context:NULL];
     
     self.sendButton = [UIButton buttonWithType:UIButtonTypeCustom];
     [self.sendButton setTitleColor:color forState:UIControlStateNormal];
@@ -126,11 +140,6 @@
     self.sendButton.enabled = NO;
     [self.sendButton addTarget:self action:@selector(sendMessage) forControlEvents:UIControlEventTouchUpInside];
     [self.messageBarView addSubview:self.sendButton];
-    
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(keyboardDidShow:)
-                                                 name:UIKeyboardDidShowNotification
-                                               object:nil];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 -(void)layoutSubviews
@@ -216,6 +225,18 @@
     [self textState:@""];
     self.hasStarted = NO;
     [self setNeedsDisplay];
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+- (BOOL)textViewShouldBeginEditing:(UITextView *)textView
+{
+    [self registerListeners];
+    return YES;
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+- (BOOL)textViewShouldEndEditing:(UITextView *)textView
+{
+    [self unregisterListeners];
+    return YES;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 - (void)textViewDidBeginEditing:(UITextView *)textView
@@ -312,6 +333,8 @@
         self.messageBarView.frame = frame;
     }
 }
+#pragma keyboard handling
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 - (void)keyboardDidShow:(NSNotification *)aNotification
 {
@@ -322,10 +345,36 @@
                                 animated:YES];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
--(void)dealloc
+-(BOOL)isFirstResponder
+{
+    return [self.textView isFirstResponder];
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+-(BOOL)becomeFirstResponder
+{
+    return [self.textView becomeFirstResponder];
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+-(BOOL)resignFirstResponder
+{
+    return [self.textView resignFirstResponder];
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+-(void)registerListeners
+{
+    self.textView.inputAccessoryView = self.watcherView;
+    [self.textView addObserver:self forKeyPath:@"contentSize" options:(NSKeyValueObservingOptionNew) context:NULL];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(keyboardDidShow:)
+                                                 name:UIKeyboardDidShowNotification
+                                               object:nil];
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+-(void)unregisterListeners
 {
     self.textView.inputAccessoryView = nil;
     [self.textView removeObserver:self forKeyPath:@"contentSize"];
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
