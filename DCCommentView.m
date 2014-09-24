@@ -71,6 +71,7 @@
 @property(nonatomic,strong)UILabel *limitLabel;
 @property(nonatomic,strong)DCWatcherView *watcherView;
 @property(nonatomic,assign)BOOL hasStarted;
+@property(nonatomic,assign)CGFloat maxScrollHeight;
 
 @end
 
@@ -82,6 +83,7 @@
     self = [super initWithFrame:frame];
     if (self)
     {
+        self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         self.scrollView = scrollView;
         self.scrollView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         self.scrollView.keyboardDismissMode = UIScrollViewKeyboardDismissModeInteractive;
@@ -96,6 +98,7 @@
     self.watcherView = [[DCWatcherView alloc] initWithFrame:CGRectZero];
     self.watcherView.delegate = self;
     self.messageBarView = [[UIView alloc] init];
+    self.messageBarView.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     self.messageBarView.backgroundColor = [UIColor clearColor];
     [self addSubview:self.messageBarView];
     
@@ -150,6 +153,7 @@
         textH = self.normalHeight;
         self.scrollView.frame = CGRectMake(0, 0, self.frame.size.width, self.frame.size.height-textH);
         self.messageBarView.frame = CGRectMake(0, self.scrollView.frame.origin.y+self.scrollView.frame.size.height, self.frame.size.width, textH);
+        self.maxScrollHeight = self.scrollView.frame.size.height;
     }
     self.blurBar.frame = CGRectMake(0, 0, self.messageBarView.frame.size.width, self.messageBarView.frame.size.height);
     CGFloat pad = 8;
@@ -204,7 +208,7 @@
     }
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
--(void)setCharLimit:(int)charLimit
+-(void)setCharLimit:(NSInteger)charLimit
 {
     _charLimit = charLimit;
     if(!self.limitLabel && self.charLimit > 0)
@@ -323,9 +327,14 @@
         tv.contentOffset = (CGPoint){.x = 0, .y = -topCorrect};
     } else if([object isKindOfClass:[UIView class]]) {
         UIView *view  = object;
-        
+        CGFloat h = view.frame.origin.y;
+        if(h > self.maxScrollHeight+self.messageBarView.frame.size.height) {
+            h = self.maxScrollHeight;
+        } else {
+            h -= self.messageBarView.frame.size.height;
+        }
         CGRect frame = self.scrollView.frame;
-        frame.size.height = view.frame.origin.y - self.messageBarView.frame.size.height;
+        frame.size.height = h;
         self.scrollView.frame = frame;
         
         frame = self.messageBarView.frame;

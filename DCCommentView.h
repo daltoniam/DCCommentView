@@ -49,7 +49,7 @@
 /**
  limit the amount of characters that can be sent. Default is 0, which is unlimited.
  */
-@property(nonatomic,assign)int charLimit;
+@property(nonatomic,assign)NSInteger charLimit;
 
 /**
  add an image for your accessory button (e.g. the camera icon in the messages app).
