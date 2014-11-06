@@ -12,6 +12,7 @@
 
 @property(nonatomic,weak)id delegate;
 @property(nonatomic,copy)NSString *keyword;
+@property(nonatomic,assign)BOOL registered;
 
 @end
 
@@ -33,21 +34,27 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 -(void)willMoveToSuperview:(UIView *)newSuperview
 {
-    if(self.superview) {
-        [self.superview removeObserver:self.delegate forKeyPath:self.keyword];
-    }
-    if(newSuperview) {
-        [newSuperview addObserver:self.delegate
-                       forKeyPath:self.keyword
-                          options:0
-                          context:NULL];
+    if(self.delegate) {
+        if(self.superview && self.registered) {
+            self.registered = NO;
+            [self.superview removeObserver:self.delegate forKeyPath:self.keyword];
+        }
+        if(newSuperview && !self.registered) {
+            self.registered = YES;
+            [newSuperview addObserver:self.delegate
+                           forKeyPath:self.keyword
+                              options:0
+                              context:NULL];
+        }
     }
     [super willMoveToSuperview:newSuperview];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 -(void)dealloc
 {
-    [self.superview removeObserver:self.delegate forKeyPath:self.keyword];
+    if(self.registered && self.delegate) {
+        [self.superview removeObserver:self.delegate forKeyPath:self.keyword];
+    }
 }
 
 @end
@@ -159,7 +166,7 @@
     CGFloat pad = 8;
     CGFloat btnWidth = 50;
     CGFloat left = pad;
-    float tpad = 2;
+    CGFloat tpad = 2;
     if(self.accessoryImage)
     {
         float imgWidth = 30;
@@ -247,6 +254,7 @@
 {
     if([self.delegate respondsToSelector:@selector(didShowCommentView)])
         [self.delegate didShowCommentView];
+    [self textViewHack:YES];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 - (void)textViewDidEndEditing:(UITextView *)textView
@@ -292,6 +300,18 @@
         self.textLabel.hidden = NO;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+-(void)textViewHack:(BOOL)doFix
+{
+    CGFloat tpad = 2;
+    CGFloat txtTop = 0;
+    CGFloat fixer = 0;
+    if(doFix) {
+        fixer = 2;
+        txtTop = -fixer;
+    }
+    self.textView.frame = CGRectMake(tpad, txtTop, self.backView.frame.size.width-(tpad*2), self.backView.frame.size.height+(fixer*2));
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
 -(void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context
 {
     if([object isKindOfClass:[UITextView class]])
@@ -321,10 +341,17 @@
         
         [self setNeedsLayout];
         
+        if(size <= self.backView.frame.size.height) {
+            [self textViewHack:YES];
+        } else {
+            [self textViewHack:NO];
+        }
         CGFloat topCorrect = ([tv bounds].size.height - [tv contentSize].height * [tv zoomScale])/2.0;
         if(yOffset > 0)
             topCorrect = self.textView.font.pointSize-topCorrect;
+        //topCorrect = (topCorrect < 0.0 ? 0.0 : topCorrect);
         tv.contentOffset = (CGPoint){.x = 0, .y = -topCorrect};
+        
     } else if([object isKindOfClass:[UIView class]]) {
         UIView *view  = object;
         CGFloat h = view.frame.origin.y;
