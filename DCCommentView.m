@@ -79,6 +79,7 @@
 @property(nonatomic,strong)DCWatcherView *watcherView;
 @property(nonatomic,assign)BOOL hasStarted;
 @property(nonatomic,assign)CGFloat maxScrollHeight;
+@property(nonatomic,strong)UITextField *dummyField;
 
 @end
 
@@ -102,6 +103,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 -(void)setupInit
 {
+    self.dummyField = [[UITextField alloc] initWithFrame:CGRectZero];
+    [self addSubview:self.dummyField];
     self.watcherView = [[DCWatcherView alloc] initWithFrame:CGRectZero];
     self.watcherView.delegate = self;
     self.messageBarView = [[UIView alloc] init];
@@ -231,6 +234,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 -(void)sendMessage
 {
+    [self.dummyField becomeFirstResponder];
+    [self.dummyField resignFirstResponder];
+    [self.textView becomeFirstResponder];
     [self.delegate didSendComment:self.textView.text];
     self.textView.text = @"";
     [self textState:@""];
