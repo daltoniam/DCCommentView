@@ -50,12 +50,30 @@
     [super willMoveToSuperview:newSuperview];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
--(void)dealloc
+-(void)registerListener
 {
-    if(self.registered && self.delegate) {
+    if(!self.registered && self.delegate && self.superview) {
+        self.registered = YES;
+        [self.superview addObserver:self.delegate
+                         forKeyPath:self.keyword
+                            options:0
+                            context:NULL];
+    }
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+-(void)unregisterListener
+{
+    if(self.registered && self.delegate && self.superview) {
+        self.registered = NO;
         [self.superview removeObserver:self.delegate forKeyPath:self.keyword];
     }
 }
+////////////////////////////////////////////////////////////////////////////////////////////////////
+-(void)dealloc
+{
+    [self unregisterListener];
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 @end
 
@@ -265,6 +283,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 - (void)textViewDidEndEditing:(UITextView *)textView
 {
+    [self.watcherView unregisterListener];
     if([self.delegate respondsToSelector:@selector(didDismissCommentView)])
         [self.delegate didDismissCommentView];
 }
@@ -406,6 +425,7 @@
 {
     self.textView.inputAccessoryView = self.watcherView;
     [self.textView addObserver:self forKeyPath:@"contentSize" options:(NSKeyValueObservingOptionNew) context:NULL];
+    [self.watcherView registerListener];
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(keyboardDidShow:)
                                                  name:UIKeyboardDidShowNotification
@@ -417,6 +437,10 @@
     self.textView.inputAccessoryView = nil;
     [self.textView removeObserver:self forKeyPath:@"contentSize"];
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+-(void)dealloc
+{
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
